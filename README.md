@@ -21,3 +21,13 @@ createFit1.m
 This is the helper function that creates the fit for cauchyfitting.m. It performs nonlinear regression using the method of least squares.
 More info can be found here: [https://www.mathworks.com/help/curvefit/custom-nonlinear-models.html](url)
 
+opticspy:
+    This package will be for modelling various optical properties
+    
+    importer.py:
+        various utility functions for importing data
+    multilayers.py
+        calculates the values of transmittance and reflactances for a multilayers structure
+        work in progress, currently only does normal incidence
+        
+    
