@@ -18,7 +18,7 @@ def Magnetic_Potenial(thickness,diameter,armLength,phi, magnetization,step,zprim
     delR = np.array([x-xprime,y-yprime,z-zprime]) # this is the distance vector, with the primed values denoting source points and the unprimed values denoting field values
 
     integrand = np.cross(M,delR)/(magnitude(delR)**3)
-    
+
     cornerPos= currentPos(thickness,diameter,armLength,phi)
     posFunction = postionFunctions(thickness,diameter,armLength,phi)
 
@@ -35,13 +35,21 @@ def Magnetic_Potenial(thickness,diameter,armLength,phi, magnetization,step,zprim
     Az += numeric_double_Integral(integrand[2],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
 
     A=np.array([Ax,Ay,Az])
-    return np.array([Ax,Ay,Az])
+
+    return A
 
 def Magnetic_Potenial_field(thickness,diameter,armLength,phi, magnetization,step,resolution ,xlim, ylim,zlim):
-    M=np.array([0,0,0])
     k= zlim*-1
+    throwaway= symbols('throwaway')
+    M=np.array([throwaway,throwaway,throwaway],dtype='object')
+    M-=throwaway
+
+
     while k<zlim:
-        M+=Magnetic_Potenial(thickness,diameter,armLength,phi, magnetization,step,k)
+        A=Magnetic_Potenial(thickness,diameter,armLength,phi, magnetization,step,k)
+        M[0]+=A[0]
+        M[1]+=A[1]
+        M[2]+=A[2]
         k+=step
     x,y,z =symbols('x y z')
     A= lambdify([x,y,z],M)
@@ -55,9 +63,9 @@ def Magnetic_Potenial_field(thickness,diameter,armLength,phi, magnetization,step
         while j<int(2*ylim/resolution):
             k=0
             while k<int(2*zlim/resolution):
-                AijX[i][j][k]=A(i*resolution-xlim,j*resolution-ylim)[0]
-                AijY[i][j][k]=A(i*resolution-xlim,j*resolution-ylim)[1]
-                AijZ[i][j][k]=A(i*resolution-xlim,j*resolution-ylim)[2]
+                AijX[i][j][k]=A(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[0]
+                AijY[i][j][k]=A(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[1]
+                AijZ[i][j][k]=A(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[2]
                 k+=1
             j+=1
         i+=1
@@ -136,7 +144,6 @@ def numeric_double_Integral(integrand,x0,xf,yb,yt,step,symx,symy):
         x+=xstep
     return I
 
-def numeric_curl(vectorfield):
 
 A=Magnetic_Potenial_field(2,4,3,0, 1,.5,1 ,10, 10,10)
 for i in range(np.shape(A[0])[1]):
