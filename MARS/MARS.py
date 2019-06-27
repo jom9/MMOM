@@ -54,22 +54,22 @@ def Magnetic_Potenial_field(thickness,diameter,armLength,phi, magnetization,step
     x,y,z =symbols('x y z')
     A= lambdify([x,y,z],M)
 
-    AijX=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
-    AijY=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
-    AijZ=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
+    AijkX=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
+    AijkY=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
+    AijkZ=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
     i=0
     while i <int(2*xlim/resolution):
         j=0
         while j<int(2*ylim/resolution):
             k=0
             while k<int(2*zlim/resolution):
-                AijX[i][j][k]=A(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[0]
-                AijY[i][j][k]=A(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[1]
-                AijZ[i][j][k]=A(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[2]
+                AijkX[i][j][k]=A(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[0]
+                AijkY[i][j][k]=A(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[1]
+                AijkZ[i][j][k]=A(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[2]
                 k+=1
             j+=1
         i+=1
-    return np.array([AijX,AijY,AijZ])
+    return np.array([AijkX,AijkY,AijkZ])
 
 def currentPos(thickness,diameter,armLength,phi): #finds the position of each of the four cornes of the magnet
     psi = np.absolute( np.arctan(diameter/2*(armLength))   ) #angle made between center of magnet and top front end
@@ -124,7 +124,41 @@ def numeric_double_Integral(integrand,x0,xf,yb,yt,xstep,ystep,symx,symy):
             y+=ystep
         x+=xstep
     return I
-
+def numeric_curl(Vx,Vy,Vz,step):
+    Wx=np.zeros(Vx.shape)
+    Wy=np.zeros(Vy.shape)
+    Wz=np.zeros(Vz.shape)
+    print(Vx.shape)
+    print(Vy.shape)
+    print(Vz.shape)
+    for i in range(Vx.shape[0]):
+        for j in range(Vy.shape[0]):
+            for k in range(Vz.shape[0]):
+                if j+1<Vz.shape[0] and k+1<Vz.shape[0]:
+                    Wx[i][j][k]=(Vz[i][j+1][k]-Vz[i][j][k])/step+(Vy[i][j][k+1]-Vy[i][j][k])/step
+                elif k+1<Vz.shape[0]:
+                    Wx[i][j][k]= (Vy[i][j][k+1]-Vy[i][j][k])/step
+                elif j+1<Vz.shape[0]:
+                    Wx[i][j][k]= (Vz[i][j+1][k]-Vz[i][j][k])/step
+                else:
+                     Wy[i][j][k]=Wy[i][j-1][k-1]
+                if i+1<Vz.shape[0] and k+1<Vz.shape[0]:
+                    Wy[i][j][k]=-1*((Vz[i+1][j][k]-Vz[i][j][k])/step+(Vx[i][j][k+1]-Vx[i][j][k])/step)
+                elif k+1<Vz.shape[0]:
+                    Wy[i][j][k] = ((Vx[i][j][k+1]-Vx[i][j][k])/step)
+                elif i+1<Vz.shape[0]:
+                    Wy[i][j][k]= -1*((Vz[i+1][j][k]-Vz[i][j][k])/step)
+                else:
+                     Wy[i][j][k]=Wy[i-1][j][k-1]
+                if j+1<Vz.shape[0] and i+1<Vz.shape[0]:
+                    Wz[i][j][k]= (Vy[i+1][j][k]-Vy[i][j][k])/step+(Vx[i][j+1][k]-Vx[i][j][k])/step
+                elif j+1<Vz.shape[0]:
+                    Wz[i][j][k]= (Vx[i][j+1][k]-Vx[i][j][k])/step
+                elif i+1<Vz.shape[0]:
+                    Wz[i][j][k]= (Vy[i+1][j][k]-Vy[i][j][k])/step
+                else:
+                     Wz[i][j][k]=Wz[i-1][j-1][k]
+    return np.array([Wx,Wy,Wz])
 def numeric_double_Integral(integrand,x0,xf,yb,yt,step,symx,symy):
     xstep=step
     ystep=step
@@ -144,9 +178,21 @@ def numeric_double_Integral(integrand,x0,xf,yb,yt,step,symx,symy):
         x+=xstep
     return I
 
-
-A=Magnetic_Potenial_field(2,4,3,0, 1,.5,1 ,10, 10,10)
-for i in range(np.shape(A[0])[1]):
+res =1
+xlim =10
+ylim =10
+zlim =10
+a=Magnetic_Potenial_field(2,4,3,0, 1,.5,res ,xlim,ylim,zlim)
+A=numeric_curl(a[0],a[1],a[2],.5)
+file = open("Bfielddata.txt","w+")
+for i in range(np.shape(A[0])[0]):
     for j in range(np.shape(A[0])[0]):
-        print("x:",A[0][i][j],"y:",A[1][i][j],"z:",A[2][i][j],end=" ")
-    print()
+        for k in range(np.shape(A[0])[0]):
+            p= str(i*res-xlim)
+            q= str(j*res-ylim)
+            r= str(k*res-zlim)
+            a=str(A[0][i][j][k])
+            b=str(A[1][i][j][k])
+            c=str(A[2][i][j][k])
+            print("("+p+","+q+","+r+")  ("+a+","+b+","+c+")")
+            f.write("("+p+","+q+","+r+")  ("+a+","+b+","+c+")\r\n")
