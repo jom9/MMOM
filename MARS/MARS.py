@@ -195,4 +195,4 @@ for i in range(np.shape(A[0])[0]):
             b=str(A[1][i][j][k])
             c=str(A[2][i][j][k])
             print("("+p+","+q+","+r+")  ("+a+","+b+","+c+")")
-            f.write("("+p+","+q+","+r+")  ("+a+","+b+","+c+")\r\n")
+            file.write("("+p+","+q+","+r+")  ("+a+","+b+","+c+")\r\n")
