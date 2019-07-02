@@ -1,12 +1,13 @@
 import numpy as np
-import matplotlib as plt
+import matplotlib.pyplot as plt
+from sympy import *
 class multilayers:
     def __init__(self,indexesofRefractions,imagIndex,thicknesses,lamda0,polarization):
         self.P= polarization
         self.lamdavac = lamda0
-        self.n = np.zeros((thicknesses.size+2),dtype='complex')+1
-        for i in range(1,thicknesses.size+1):
-            self.n[i]+= complex(indexesofRefractions[i-1],imagIndex[i-1])
+        self.n = np.zeros((thicknesses.size),dtype='complex')
+        for i in range(0,thicknesses.size):
+            self.n[i]+= complex(indexesofRefractions[i],imagIndex[i])
         self.d=thicknesses #thicknesses of each layer
         self.numofLayers= self.n.size
         self.thetas=np.zeros(self.n.size,dtype='complex')
@@ -40,15 +41,14 @@ class multilayers:
             self.thetas[i]=self.refracted_angle(self.thetas[i-1],self.n[i-1],self.n[i])
     def Transfer_Matrix(self,i):
         M = np.zeros((2,2),dtype='complex')
-        kz = 2*self.n[i]*pi/self.lamdavac*np.cos(self.n[i])
+        kz = 2*self.n[i]*np.pi/self.lamdavac*np.cos(self.thetas[i])
         delta = kz*self.d[i]
-        M[0][0]=complex(0,-1)*delta
-        M[1][1]=complex(0,1)*delta
-        A= np.eye((2,2))
+        M[0][0]=np.exp(complex(0,-1)*delta)
+        M[1][1]=np.exp(complex(0,1)*delta)
+        A= np.identity((2),dtype='complex')
         fc=self.fresnel_coeffs(self.P, self.thetas[i],self.n[i], self.n[i+1])
         A[0][1]=fc[0]
         A[1][0]=fc[0]
-        print(A)
         return np.matmul(M,A)/fc[1]
     def global_Transfer_Matrix(self,theta0):
         self.generate_Angles(theta0)
@@ -56,24 +56,44 @@ class multilayers:
         fc=self.fresnel_coeffs(self.P, self.thetas[0],self.n[0], self.n[1])
         G_M[0][1]=fc[0]
         G_M[1][0]=fc[0]
-        G_M=G_M*fc[1]
-        for i in range(1,self.n.size-2):
+        G_M=G_M*1/fc[1]
+        for i in range(1,self.n.size-1):
             G_M = np.matmul(G_M,self.Transfer_Matrix(i))
         return G_M
     def Transmittance(self,theta0):
         t=1/(self.global_Transfer_Matrix(theta0)[0][0])
         if self.P=='s':
-            return abs(t**2)* (((self.n[-2]*np.cos(self.thetas[-2])).real) / (self.n[1]*np.cos(self.thetas[1])).real)
+
+            return abs(t)**2#* (((self.n[-2]*np.cos(self.thetas[-2])).real) / (self.n[1]*np.cos(self.thetas[1])).real)
         elif pol == 'p':
-            return abs(t**2) * (((self.n[-2]*conj(np.cos(self.thetas[-2]))).real) /(self.n[1]*conj(np.cos(self.thetas[1]))).real)
+            return abs(t)**2 #* (((self.n[-2]*conj(np.cos(self.thetas[-2]))).real) /(self.n[1]*conj(np.cos(self.thetas[1]))).real)
 
     def Reflectance(self,theta0):
         r=self.global_Transfer_Matrix(theta0)[1][0]/self.global_Transfer_Matrix(theta0)[0][0]
-        return abs(r**2)
-th=np.array([600])
-k = np.array([0])
-n = np.array([3.42])
-lamda0=61
+        return abs(r)**2
 
-m=multilayers(n,k,th,lamda0,'s')
-print(m.Reflectance(0) ,m.Transmittance(0))
+lamda = symbols('lamda')
+fittingCoeff = [3.440,.013,-0.044,.027,-.002]
+nexp = fittingCoeff[0]+fittingCoeff[1]/(lamda**2)+fittingCoeff[2]/(lamda**4)+fittingCoeff[3]/(lamda**6)+fittingCoeff[4]/(lamda**8)
+T=[]
+R=[]
+l=[]
+narray=[]
+f = lambdify(lamda,nexp)
+step=.1
+start =1
+for i in range(0,100):
+
+    lamda0=i*step+start
+    l+=[lamda0]
+    narray+=[f(lamda0)]
+    th=np.array([np.inf,600,np.inf])
+    k = np.array([0,0,0])
+    n = np.array([1,f(lamda0),1])
+    m=multilayers(n,k,th,lamda0,'s')
+
+    R+=[m.Reflectance(0)]
+    T+=[m.Transmittance(0)]
+    print(i,R[i],T[i])
+plt.plot(l,R,T)
+plt.show()
