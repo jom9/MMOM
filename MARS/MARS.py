@@ -1,5 +1,6 @@
 from sympy import *
 import numpy as np
+import time
 def magnitude(vector):
     m=0
     for i in range(vector.size):
@@ -19,8 +20,8 @@ def Magnetic_Potenial(thickness,diameter,armLength,phi, magnetization,step,zprim
 
     integrand = np.cross(M,delR)/(magnitude(delR)**3)
 
-    cornerPos= currentPos(thickness,diameter,armLength,phi)
-    posFunction = postionFunctions(thickness,diameter,armLength,phi)
+    cornerPos= currentPos(thickness,diameter,armLength,phi) #gets the four corners needed to take each rectangluar slice
+    posFunction = postionFunctions(thickness,diameter,armLength,phi) #creates the lines that trace out borders to slice
 
     Ax = numeric_double_Integral(integrand[0],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
     Ax += numeric_double_Integral(integrand[0],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
@@ -33,12 +34,13 @@ def Magnetic_Potenial(thickness,diameter,armLength,phi, magnetization,step,zprim
     Az = numeric_double_Integral(integrand[2],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
     Az += numeric_double_Integral(integrand[2],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
     Az += numeric_double_Integral(integrand[2],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
-
+    # evualtes the integral to get the potential. each component takes 3 integrals since the region must be broken up into 3 subregions
     A=np.array([Ax,Ay,Az])
 
     return A
 
 def Magnetic_Potenial_field(thickness,diameter,armLength,phi, magnetization,step,resolution ,xlim, ylim,zlim):
+    #this generates the entire potential over the entire magnets region by dividing it into slices go from the negitve z limit to the positive z limit
     k= zlim*-1
     throwaway= symbols('throwaway')
     M=np.array([throwaway,throwaway,throwaway],dtype='object')
@@ -46,17 +48,18 @@ def Magnetic_Potenial_field(thickness,diameter,armLength,phi, magnetization,step
 
 
     while k<zlim:
-        A=Magnetic_Potenial(thickness,diameter,armLength,phi, magnetization,step,k)
-        M[0]+=A[0]
-        M[1]+=A[1]
-        M[2]+=A[2]
+        Aith=Magnetic_Potenial(thickness,diameter,armLength,phi, magnetization,step,k)
+        M[0]+=Aith[0]
+        M[1]+=Aith[1]
+        M[2]+=Aith[2]
         k+=step
     x,y,z =symbols('x y z')
-    A= lambdify([x,y,z],M)
+    A= lambdify([x,y,z],M) #analyitcal potential function geneated by combining slices
 
     AijkX=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
     AijkY=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
     AijkZ=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
+    # The 3d arrays holding the field values for each point
     i=0
     while i <int(2*xlim/resolution):
         j=0
@@ -109,6 +112,7 @@ def postionFunctions(thickness,diameter,armLength,phi):
 
     return [(slopeofLine0To1,b01),(slopeofLine0To2,b02),(slopeofLine1To3,b13),(slopeofLine2To3,b23)]
 def numeric_double_Integral(integrand,x0,xf,yb,yt,xstep,ystep,symx,symy):
+    #simple rieman double integral
     x=x0
     I=0
     f= lambdify(symx,yb,"numpy")
@@ -125,6 +129,7 @@ def numeric_double_Integral(integrand,x0,xf,yb,yt,xstep,ystep,symx,symy):
         x+=xstep
     return I
 def numeric_curl(Vx,Vy,Vz,step):
+    #numeric curl function, using linear approximation
     Wx=np.zeros(Vx.shape)
     Wy=np.zeros(Vy.shape)
     Wz=np.zeros(Vz.shape)
@@ -159,6 +164,39 @@ def numeric_curl(Vx,Vy,Vz,step):
                 else:
                      Wz[i][j][k]=Wz[i-1][j-1][k]
     return np.array([Wx,Wy,Wz])
+
+def Magnetic_Field(potential,step):
+    B=numeric_curl(potential[0],potential[1],potential[2],step)
+    return B
+
+def rotating_field(thickness,diameter,armLength,startphi, angularvelocity,magnetization,step,resolution ,xlim, ylim,zlim, totaltime,timestep):
+        #total time is the period of time, this program takes time slices of rotating magnets
+        numberofticks= int(totaltime/timestep)
+        Bfield=[] # bfield
+        for t in range(numberofticks):
+            print("started",t,"!")
+            start = time.time()
+            phi=angularvelocity*t+startphi
+            A=Magnetic_Potenial_field(thickness,diameter,armLength,phi, magnetization,step,resolution ,xlim, ylim,zlim)
+            #Bfield.append(Magnetic_Field(A,step))
+            file = open("Bfielddata"+str(t)+".txt","w+")
+            B=Magnetic_Field(A,step)
+            for i in range(np.shape(B[0])[0]):
+                for j in range(np.shape(B[0])[0]):
+                    for k in range(np.shape(B[0])[0]):
+                        p= str(i*res-xlim)
+                        q= str(j*res-ylim)
+                        r= str(k*res-zlim)
+                        a=str(B[0][i][j][k])
+                        b=str(B[1][i][j][k])
+                        c=str(B[2][i][j][k])
+                        print("("+p+","+q+","+r+")  ("+a+","+b+","+c+")")
+                        file.write("("+p+","+q+","+r+")  ("+a+","+b+","+c+")\r\n")
+            delt=time.time()-start
+            print("Finished ",t,"! It took",delt," seconds")
+
+        return Bfield
+
 def numeric_double_Integral(integrand,x0,xf,yb,yt,step,symx,symy):
     xstep=step
     ystep=step
@@ -182,17 +220,24 @@ res =1
 xlim =10
 ylim =10
 zlim =10
-a=Magnetic_Potenial_field(2,4,3,0, 1,.5,res ,xlim,ylim,zlim)
-A=numeric_curl(a[0],a[1],a[2],.5)
-file = open("Bfielddata.txt","w+")
-for i in range(np.shape(A[0])[0]):
-    for j in range(np.shape(A[0])[0]):
-        for k in range(np.shape(A[0])[0]):
-            p= str(i*res-xlim)
-            q= str(j*res-ylim)
-            r= str(k*res-zlim)
-            a=str(A[0][i][j][k])
-            b=str(A[1][i][j][k])
-            c=str(A[2][i][j][k])
-            print("("+p+","+q+","+r+")  ("+a+","+b+","+c+")")
-            file.write("("+p+","+q+","+r+")  ("+a+","+b+","+c+")\r\n")
+step=1
+totaltime=50
+timestep=1
+#rotating_field(thickness,diameter,armLength,startphi, angularvelocity,magnetization,step,resolution ,xlim, ylim,zlim, totaltime,timestep):
+B =rotating_field(2,4,3,0, 10,1,step,res ,xlim, ylim,zlim, totaltime,timestep)
+'''
+for l in range(B.size):
+    file = open("Bfielddata"+str(l)+".txt","w+")
+    A=B[l]
+    for i in range(np.shape(A[0])[0]):
+        for j in range(np.shape(A[0])[0]):
+            for k in range(np.shape(A[0])[0]):
+                p= str(i*res-xlim)
+                q= str(j*res-ylim)
+                r= str(k*res-zlim)
+                a=str(A[0][i][j][k])
+                b=str(A[1][i][j][k])
+                c=str(A[2][i][j][k])
+                print("("+p+","+q+","+r+")  ("+a+","+b+","+c+")")
+                file.write("("+p+","+q+","+r+")  ("+a+","+b+","+c+")\r\\n")
+'''
