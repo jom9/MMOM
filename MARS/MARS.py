@@ -75,11 +75,11 @@ def Magnetic_Potenial_field(thickness,diameter,armLength,phi, magnetization,step
     return np.array([AijkX,AijkY,AijkZ])
 
 def currentPos(thickness,diameter,armLength,phi): #finds the position of each of the four cornes of the magnet
-    psi = np.absolute( np.arctan(diameter/2*(armLength))   ) #angle made between center of magnet and top front end
-    theta = np.absolute( np.arctan(diameter/2*(armLength+thickness))) # angle made between center of the magnet and backend
+    psi =  np.arctan(diameter/(2*(armLength)))    #angle made between center of magnet and top front end
+    theta = np.arctan(diameter/(2*(armLength+thickness))) # angle made between center of the magnet and backend
 
-    alpha = (armLength**2 + (diameter/2)**2)**1/2 # distance from front end
-    beta = ((armLength+thickness)**2 + (diameter/2)**2)**1/2 # distance from back end
+    alpha = (armLength**2 + (diameter/2)**2)**.5 # distance from front end
+    beta = ((armLength+thickness)**2 + (diameter/2)**2)**.5 # distance from back end
     r0= np.array( [ alpha*np.cos(phi+psi),alpha*np.sin(phi+psi),0] )
     r1= np.array( [ alpha*np.cos(phi-psi),alpha*np.sin(phi-psi),0] )
     r2= np.array( [ beta*np.cos(phi+theta),beta*np.sin(phi+theta),0] )
