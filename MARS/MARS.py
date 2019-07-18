@@ -66,6 +66,7 @@ def Magnetic_Potenial_field(thickness,diameter,armLength,phi, magnetization,step
         while j<int(2*ylim/resolution):
             k=0
             while k<int(2*zlim/resolution):
+                print("stuff",i,j,k)
                 AijkX[i][j][k]=A(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[0]
                 AijkY[i][j][k]=A(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[1]
                 AijkZ[i][j][k]=A(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[2]
@@ -84,6 +85,7 @@ def currentPos(thickness,diameter,armLength,phi): #finds the position of each of
     r1= np.array( [ alpha*np.cos(phi-psi),alpha*np.sin(phi-psi),0] )
     r2= np.array( [ beta*np.cos(phi+theta),beta*np.sin(phi+theta),0] )
     r3= np.array( [ beta*np.cos(phi-theta),beta*np.sin(phi-theta),0] )
+    print("current pos",r0,r1,r2,r3)
     return [r0,r1,r2,r3]
 def postionFunctions(thickness,diameter,armLength,phi):
     L = currentPos(thickness,diameter,armLength,phi)
@@ -168,7 +170,43 @@ def numeric_curl(Vx,Vy,Vz,step):
 def Magnetic_Field(potential,step):
     B=numeric_curl(potential[0],potential[1],potential[2],step)
     return B
+def double_integral_checker(thickness,diameter,armLength,startphi, angularvelocity,magnetization,step,resolution ,xlim, ylim,zlim, totaltime,timestep):
+        numberofticks= int(totaltime/timestep)
+        Bfield=[] # bfield
+        zprime =0
+        for t in range(numberofticks):
+            print("started",t,"!")
+            start = time.time()
+            phi=angularvelocity*t+startphi
 
+            M = np.array([np.cos(phi),np.sin(phi),0]) # magnetization vector
+
+            x,y,z,xprime,yprime= symbols('x y z xprime yprime')
+            delR = np.array([x-xprime,y-yprime,z-zprime]) # this is the distance vector, with the primed values denoting source points and the unprimed values denoting field values
+
+            integrand =['1','1','1']#np.cross(M,delR)/(magnitude(delR)**3)
+
+            cornerPos= currentPos(thickness,diameter,armLength,phi) #gets the four corners needed to take each rectangluar slice
+            posFunction = postionFunctions(thickness,diameter,armLength,phi) #creates the lines that trace out borders to slice
+
+            Ax = numeric_double_Integral(integrand[0],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+            Ax += numeric_double_Integral(integrand[0],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+            Ax += numeric_double_Integral(integrand[0],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
+
+            Ay = numeric_double_Integral(integrand[1],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+            Ay += numeric_double_Integral(integrand[1],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+            Ay += numeric_double_Integral(integrand[1],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
+
+            Az = numeric_double_Integral(integrand[2],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+            Az += numeric_double_Integral(integrand[2],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+            Az += numeric_double_Integral(integrand[2],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
+            # evualtes the integral to get the potential. each component takes 3 integrals since the region must be broken up into 3 subregions
+            A=np.array([Ax,Ay,Az])
+            print(phi,A)
+            delt=time.time()-start
+            print("Finished ",t,"! It took",delt," seconds")
+
+        return Bfield
 def rotating_field(thickness,diameter,armLength,startphi, angularvelocity,magnetization,step,resolution ,xlim, ylim,zlim, totaltime,timestep):
         #total time is the period of time, this program takes time slices of rotating magnets
         numberofticks= int(totaltime/timestep)
@@ -180,7 +218,7 @@ def rotating_field(thickness,diameter,armLength,startphi, angularvelocity,magnet
             A=Magnetic_Potenial_field(thickness,diameter,armLength,phi, magnetization,step,resolution ,xlim, ylim,zlim)
             #Bfield.append(Magnetic_Field(A,step))
             file = open("Bfielddata"+str(t)+".txt","w+")
-            B=Magnetic_Field(A,step)
+            B=Magnetic_Field(A,res)
             for i in range(np.shape(B[0])[0]):
                 for j in range(np.shape(B[0])[0]):
                     for k in range(np.shape(B[0])[0]):
@@ -220,11 +258,18 @@ res =1
 xlim =10
 ylim =10
 zlim =10
-step=1
+step=.01
 totaltime=50
 timestep=1
+startphi =0*np.pi/2
+thickness=4
+diameter=2
+armLength=3
+angularvelocity=np.pi/3
+magnetization=200
 #rotating_field(thickness,diameter,armLength,startphi, angularvelocity,magnetization,step,resolution ,xlim, ylim,zlim, totaltime,timestep):
-B =rotating_field(2,4,3,0, 10,1,step,res ,xlim, ylim,zlim, totaltime,timestep)
+double_integral_checker(thickness,diameter,armLength,startphi, angularvelocity,magnetization,step,res ,xlim, ylim,zlim, totaltime,timestep)
+#B =rotating_field(thickness,diameter,armLength,startphi, angularvelocity,magnetization,step,res ,xlim, ylim,zlim, totaltime,timestep)
 '''
 for l in range(B.size):
     file = open("Bfielddata"+str(l)+".txt","w+")
