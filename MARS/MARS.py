@@ -74,6 +74,23 @@ def Magnetic_Potenial_field(thickness,diameter,armLength,phi, magnetization,step
             j+=1
         i+=1
     return np.array([AijkX,AijkY,AijkZ])
+def sortbyx(positions):
+    i=0
+    while i<len(positions):
+        j=len(positions)-i-1
+        max = positions[j][0]
+        maxi=j
+        while j>=0:
+            if positions[j][0]>max:
+                maxi=j
+                max= positions[j][0]
+            j-=1
+        placeholder = positions[len(positions)-i-1]
+        positions[len(positions)-i-1]=positions[maxi]
+        positions[maxi]= placeholder
+        i+=1
+    return positions
+
 
 def currentPos(thickness,diameter,armLength,phi): #finds the position of each of the four cornes of the magnet
     psi =  np.arctan(diameter/(2*(armLength)))    #angle made between center of magnet and top front end
@@ -85,8 +102,8 @@ def currentPos(thickness,diameter,armLength,phi): #finds the position of each of
     r1= np.array( [ alpha*np.cos(phi-psi),alpha*np.sin(phi-psi),0] )
     r2= np.array( [ beta*np.cos(phi+theta),beta*np.sin(phi+theta),0] )
     r3= np.array( [ beta*np.cos(phi-theta),beta*np.sin(phi-theta),0] )
-    print("current pos",r0,r1,r2,r3)
-    return [r0,r1,r2,r3]
+
+    return sortbyx([r0,r1,r2,r3])
 def postionFunctions(thickness,diameter,armLength,phi):
     L = currentPos(thickness,diameter,armLength,phi)
     if (L[0][0]-L[2][0])!=0:
@@ -110,8 +127,8 @@ def postionFunctions(thickness,diameter,armLength,phi):
     b01 = L[0][1]-slopeofLine0To1*L[0][0]
     b13 = L[1][1]-slopeofLine1To3*L[1][0]
     b23 = L[2][1]-slopeofLine2To3*L[2][0]
-
-
+    print((round(L[0][0],2),round(L[0][1],2) ),(round(L[1][0],2),round(L[1][1],2) ),(round(L[2][0],2),round(L[2][1],2) ),(round(L[3][0],2),round(L[3][1],2) ) )
+    print("current pos",(round(slopeofLine0To1,2),round(b01,2)),(round(slopeofLine0To2,2),round(b02,2)),(round(slopeofLine1To3,2),round(b13,2)),(round(slopeofLine2To3,2),round(b23,2)))
     return [(slopeofLine0To1,b01),(slopeofLine0To2,b02),(slopeofLine1To3,b13),(slopeofLine2To3,b23)]
 def numeric_double_Integral(integrand,x0,xf,yb,yt,xstep,ystep,symx,symy):
     #simple rieman double integral
@@ -258,7 +275,7 @@ res =1
 xlim =10
 ylim =10
 zlim =10
-step=.01
+step=.5
 totaltime=50
 timestep=1
 startphi =0*np.pi/2
