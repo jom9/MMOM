@@ -102,24 +102,35 @@ def currentPos(thickness,diameter,armLength,phi): #finds the position of each of
     r1= np.array( [ alpha*np.cos(phi-psi),alpha*np.sin(phi-psi),0] )
     r2= np.array( [ beta*np.cos(phi+theta),beta*np.sin(phi+theta),0] )
     r3= np.array( [ beta*np.cos(phi-theta),beta*np.sin(phi-theta),0] )
-
-    return sortbyx([r0,r1,r2,r3])
+    return [r0,r1,r2,r3]
+    #return sortbyx([r0,r1,r2,r3])
 def postionFunctions(thickness,diameter,armLength,phi):
-    L = currentPos(thickness,diameter,armLength,phi)
+    L = sortbyx(currentPos(thickness,diameter,armLength,phi))
+
+    tolerance = 500
     if (L[0][0]-L[2][0])!=0:
         slopeofLine0To2 = (L[0][1]-L[2][1])/(L[0][0]-L[2][0])
+        if slopeofLine0To2>tolerance:
+            slopeofLine0To2=np.Infinity
+
     else:
         slopeofLine0To2 = np.Infinity
     if (L[0][0]-L[1][0])!=0:
         slopeofLine0To1 = (L[0][1]-L[1][1])/(L[0][0]-L[1][0])
+        if slopeofLine0To1>tolerance:
+            slopeofLine0To1=np.Infinity
     else:
         slopeofLine0To1 = np.Infinity
     if (L[1][0]-L[3][0])!=0:
         slopeofLine1To3 = (L[1][1]-L[3][1])/(L[1][0]-L[3][0])
+        if slopeofLine1To3>tolerance:
+            slopeofLine1To3=np.Infinity
     else:
         slopeofLine1To3 = np.Infinity
     if (L[2][0]-L[3][0])!=0:
         slopeofLine2To3 =  (L[2][1]-L[3][1])/(L[2][0]-L[3][0])
+        if slopeofLine2To3>tolerance:
+            slopeofLine2To3=np.Infinity
     else:
         slopeofLine2To3 = np.Infinity
 
@@ -131,6 +142,7 @@ def postionFunctions(thickness,diameter,armLength,phi):
     print("current pos",(round(slopeofLine0To1,2),round(b01,2)),(round(slopeofLine0To2,2),round(b02,2)),(round(slopeofLine1To3,2),round(b13,2)),(round(slopeofLine2To3,2),round(b23,2)))
     return [(slopeofLine0To1,b01),(slopeofLine0To2,b02),(slopeofLine1To3,b13),(slopeofLine2To3,b23)]
 def numeric_double_Integral(integrand,x0,xf,yb,yt,xstep,ystep,symx,symy):
+
     #simple rieman double integral
     x=x0
     I=0
@@ -188,6 +200,7 @@ def Magnetic_Field(potential,step):
     B=numeric_curl(potential[0],potential[1],potential[2],step)
     return B
 def double_integral_checker(thickness,diameter,armLength,startphi, angularvelocity,magnetization,step,resolution ,xlim, ylim,zlim, totaltime,timestep):
+        tolerance= 500
         numberofticks= int(totaltime/timestep)
         Bfield=[] # bfield
         zprime =0
@@ -203,20 +216,47 @@ def double_integral_checker(thickness,diameter,armLength,startphi, angularveloci
 
             integrand =['1','1','1']#np.cross(M,delR)/(magnitude(delR)**3)
 
-            cornerPos= currentPos(thickness,diameter,armLength,phi) #gets the four corners needed to take each rectangluar slice
+            cornerPos= sortbyx(currentPos(thickness,diameter,armLength,phi)) #gets the four corners needed to take each rectangluar slice
             posFunction = postionFunctions(thickness,diameter,armLength,phi) #creates the lines that trace out borders to slice
 
-            Ax = numeric_double_Integral(integrand[0],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
-            Ax += numeric_double_Integral(integrand[0],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
-            Ax += numeric_double_Integral(integrand[0],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
 
-            Ay = numeric_double_Integral(integrand[1],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
-            Ay += numeric_double_Integral(integrand[1],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
-            Ay += numeric_double_Integral(integrand[1],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
 
-            Az = numeric_double_Integral(integrand[2],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
-            Az += numeric_double_Integral(integrand[2],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
-            Az += numeric_double_Integral(integrand[2],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
+            if(posFunction[0][0]<=0):
+                Ax = numeric_double_Integral(integrand[0],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+            else:
+                Ax = numeric_double_Integral(integrand[0],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[0][0]+posFunction[0][1],step,xprime,yprime)
+            if (cornerPos[1][1]<=cornerPos[2][1]):
+                Ax += numeric_double_Integral(integrand[0],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+            else:
+                Ax += numeric_double_Integral(integrand[0],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
+            if (posFunction[2][0]>=0):
+                Ax += numeric_double_Integral(integrand[0],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
+            else:
+                Ax += numeric_double_Integral(integrand[0],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[3][0]+posFunction[3][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
+            if(posFunction[0][0]<=0):
+                Ay = numeric_double_Integral(integrand[0],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+            else:
+                Ay = numeric_double_Integral(integrand[0],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[0][0]+posFunction[0][1],step,xprime,yprime)
+            if (cornerPos[1][1]<=cornerPos[2][1]):
+                Ay += numeric_double_Integral(integrand[0],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+            else:
+                Ay += numeric_double_Integral(integrand[0],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
+            if (posFunction[2][0]>=0):
+                Ay += numeric_double_Integral(integrand[0],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
+            else:
+                Ay += numeric_double_Integral(integrand[0],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[3][0]+posFunction[3][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
+            if(posFunction[0][0]<=0):
+                Az = numeric_double_Integral(integrand[0],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+            else:
+                Az = numeric_double_Integral(integrand[0],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[0][0]+posFunction[0][1],step,xprime,yprime)
+            if (cornerPos[1][1]<=cornerPos[2][1]):
+                Az += numeric_double_Integral(integrand[0],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+            else:
+                Az += numeric_double_Integral(integrand[0],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
+            if (posFunction[2][0]>=0):
+                Az += numeric_double_Integral(integrand[0],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
+            else:
+                Az += numeric_double_Integral(integrand[0],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[3][0]+posFunction[3][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
             # evualtes the integral to get the potential. each component takes 3 integrals since the region must be broken up into 3 subregions
             A=np.array([Ax,Ay,Az])
             print(phi,A)
@@ -253,30 +293,35 @@ def rotating_field(thickness,diameter,armLength,startphi, angularvelocity,magnet
         return Bfield
 
 def numeric_double_Integral(integrand,x0,xf,yb,yt,step,symx,symy):
+    #print("Entering x's", x0,xf)
     xstep=step
     ystep=step
     x=x0
     I=0
+    #print("funcs",yb,yt)
     f= lambdify(symx,yb,"numpy")
     g= lambdify(symx,yt,"numpy")
     h = lambdify([symx,symy],integrand)
-    while( x<xf):
+    while( round(x,6)<round(xf,6)):
         y=f(x)
-        while( y< g(x)):
+        #print("x,yb and yt",x,y,g(x),f(x))
+        while( round(y,6)< round(g(x),6)):
+
             area = h(x+xstep*.5,y+ystep*.5)
 
             I+=area*ystep*xstep
-
+            #print("I,f,g,", I,y,g(x))
             y+=ystep
         x+=xstep
+    #print("Returned I,", I)
     return I
 
 res =1
 xlim =10
 ylim =10
 zlim =10
-step=.5
-totaltime=50
+step=.05
+totaltime=25
 timestep=1
 startphi =0*np.pi/2
 thickness=4
