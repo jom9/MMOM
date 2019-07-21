@@ -1,12 +1,16 @@
 from sympy import *
 import numpy as np
 import time
+from queue import Queue
+import threading
+numofthreads=40
+threadQ=Queue()
 def magnitude(vector):
     m=0
     for i in range(vector.size):
         m+=vector[i]**2
     return m**.5
-def Magnetic_Potenial(thickness,diameter,armLength,phi, magnetization,step,zprime):
+def Magnetic_Potenial(thickness,diameter,armLength,phi, magnetization,step,zprime,xlim, ylim,zlim,resolution):
     # thickness is the thickness of the magnet
     # diameter of the magnet
     #armLength is the distance the magnet is away from the center
@@ -18,28 +22,117 @@ def Magnetic_Potenial(thickness,diameter,armLength,phi, magnetization,step,zprim
     x,y,z,xprime,yprime= symbols('x y z xprime yprime')
     delR = np.array([x-xprime,y-yprime,z-zprime]) # this is the distance vector, with the primed values denoting source points and the unprimed values denoting field values
 
-    integrand = np.cross(M,delR)/(magnitude(delR)**3)
+    integrand =np.cross(M,delR)/(magnitude(delR)**3)
 
-    cornerPos= currentPos(thickness,diameter,armLength,phi) #gets the four corners needed to take each rectangluar slice
+    cornerPos= sortbyx(currentPos(thickness,diameter,armLength,phi)) #gets the four corners needed to take each rectangluar slice
     posFunction = postionFunctions(thickness,diameter,armLength,phi) #creates the lines that trace out borders to slice
 
-    Ax = numeric_double_Integral(integrand[0],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
-    Ax += numeric_double_Integral(integrand[0],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
-    Ax += numeric_double_Integral(integrand[0],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
 
-    Ay = numeric_double_Integral(integrand[1],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
-    Ay += numeric_double_Integral(integrand[1],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
-    Ay += numeric_double_Integral(integrand[1],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
-
-    Az = numeric_double_Integral(integrand[2],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
-    Az += numeric_double_Integral(integrand[2],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
-    Az += numeric_double_Integral(integrand[2],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
+    if posFunction[0][0]== np.Infinity:
+        Ax =0
+    elif(posFunction[0][0]<=0):
+        Ax = numeric_double_Integral(integrand[0],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+    else:
+        Ax = numeric_double_Integral(integrand[0],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[0][0]+posFunction[0][1],step,xprime,yprime)
+    if posFunction[2][0]== np.Infinity:
+        Ax+=0
+    elif (cornerPos[1][1]<=cornerPos[2][1]):
+        Ax += numeric_double_Integral(integrand[0],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+    else:
+        Ax += numeric_double_Integral(integrand[0],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
+    if posFunction[2][0]==np.Infinity:
+        Ax+=0
+    elif (posFunction[2][0]>=0):
+        Ax += numeric_double_Integral(integrand[0],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
+    else:
+        Ax += numeric_double_Integral(integrand[0],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[3][0]+posFunction[3][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
+    if posFunction[0][0]== np.Infinity:
+        Ay=0
+    elif(posFunction[0][0]<=0):
+        Ay = numeric_double_Integral(integrand[1],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+    else:
+        Ay = numeric_double_Integral(integrand[1],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[0][0]+posFunction[0][1],step,xprime,yprime)
+    if posFunction[2][0]==np.Infinity:
+        Ay+=0
+    elif (cornerPos[1][1]<=cornerPos[2][1]):
+        Ay += numeric_double_Integral(integrand[1],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+    else:
+        Ay += numeric_double_Integral(integrand[1],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
+    if posFunction[2][0]==np.Infinity:
+        Ay+=0
+    elif (posFunction[2][0]>=0):
+        Ay += numeric_double_Integral(integrand[1],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
+    else:
+        Ay += numeric_double_Integral(integrand[1],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[3][0]+posFunction[3][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
+    if posFunction[0][0]== np.Infinity:
+        Az=0
+    elif(posFunction[0][0]<=0):
+        Az = numeric_double_Integral(integrand[2],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+    else:
+        Az = numeric_double_Integral(integrand[2],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[0][0]+posFunction[0][1],step,xprime,yprime)
+    if posFunction[2][0] == np.Infinity:
+        Az+=0
+    elif (cornerPos[1][1]<=cornerPos[2][1]):
+        Az += numeric_double_Integral(integrand[2],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+    else:
+        Az += numeric_double_Integral(integrand[2],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
+    if posFunction[2][0]==np.Infinity:
+        Az+=0
+    elif (posFunction[2][0]>=0):
+        Az += numeric_double_Integral(integrand[2],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
+    else:
+        Az += numeric_double_Integral(integrand[2],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[3][0]+posFunction[3][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
     # evualtes the integral to get the potential. each component takes 3 integrals since the region must be broken up into 3 subregions
     A=np.array([Ax,Ay,Az])
+    Afunc= lambdify([x,y,z],A) #analyitcal potential function geneated by combining slices
 
-    return A
+    AijkX=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
+    AijkY=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
+    AijkZ=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
+    # The 3d arrays holding the field values for each point
+    i=0
+    while i <int(2*xlim/resolution):
+        j=0
+        while j<int(2*ylim/resolution):
+            k=0
+            while k<int(2*zlim/resolution):
+
+                AijkX[i][j][k]=Afunc(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[0]
+                AijkY[i][j][k]=Afunc(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[1]
+                AijkZ[i][j][k]=Afunc(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[2]
+                print("stuff",i,j,k,AijkX[i][j][k],AijkY[i][j][k],AijkZ[i][j][k])
+                k+=1
+            j+=1
+        i+=1
+    threadQ.put(np.array([AijkX,AijkY,AijkZ]))
+    return np.array([AijkX,AijkY,AijkZ])
+
 
 def Magnetic_Potenial_field(thickness,diameter,armLength,phi, magnetization,step,resolution ,xlim, ylim,zlim):
+    k= zlim*-1
+    AijkX=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
+    AijkY=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
+    AijkZ=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
+
+    threadlist=[]
+    for i in range(int(2*zlim/(numofthreads*resolution))):
+        j=i*numofthreads
+        while j<numofthreads*(i+1):
+            t=threading.Thread(target=Magnetic_Potenial,args=(thickness,diameter,armLength,phi, magnetization,step,resolution*j-zlim,xlim, ylim,zlim,resolution))
+            threadlist.append(t)
+            t.start()
+            j+=1
+        while threadlist!=[]:
+            threadlist.pop(0).join()
+        while not threadQ.empty():
+            A=threadQ.get()
+            AijkX=np.add(AijkX,A[0])
+            AijkY=np.add(AijkY,A[1])
+            AijkZ=np.add(AijkZ,A[2])
+
+    return np.array([AijkX,AijkY,AijkZ])
+
+    '''
     #this generates the entire potential over the entire magnets region by dividing it into slices go from the negitve z limit to the positive z limit
     k= zlim*-1
     throwaway= symbols('throwaway')
@@ -52,7 +145,7 @@ def Magnetic_Potenial_field(thickness,diameter,armLength,phi, magnetization,step
         M[0]+=Aith[0]
         M[1]+=Aith[1]
         M[2]+=Aith[2]
-        k+=step
+        k   +=step
     x,y,z =symbols('x y z')
     A= lambdify([x,y,z],M) #analyitcal potential function geneated by combining slices
 
@@ -66,14 +159,16 @@ def Magnetic_Potenial_field(thickness,diameter,armLength,phi, magnetization,step
         while j<int(2*ylim/resolution):
             k=0
             while k<int(2*zlim/resolution):
-                print("stuff",i,j,k)
+
                 AijkX[i][j][k]=A(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[0]
                 AijkY[i][j][k]=A(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[1]
                 AijkZ[i][j][k]=A(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[2]
+                print("stuff",i,j,k,AijkX[i][j][k],AijkY[i][j][k],AijkZ[i][j][k])
                 k+=1
             j+=1
         i+=1
     return np.array([AijkX,AijkY,AijkZ])
+    '''
 def sortbyx(positions):
     i=0
     while i<len(positions):
@@ -209,54 +304,71 @@ def double_integral_checker(thickness,diameter,armLength,startphi, angularveloci
             start = time.time()
             phi=angularvelocity*t+startphi
 
-            M = np.array([np.cos(phi),np.sin(phi),0]) # magnetization vector
+            M = magnetization*p.array([np.cos(phi),np.sin(phi),0]) # magnetization vector
 
             x,y,z,xprime,yprime= symbols('x y z xprime yprime')
             delR = np.array([x-xprime,y-yprime,z-zprime]) # this is the distance vector, with the primed values denoting source points and the unprimed values denoting field values
 
-            integrand =['1','1','1']#np.cross(M,delR)/(magnitude(delR)**3)
+            integrand =np.cross(M,delR)/(magnitude(delR)**3)
 
             cornerPos= sortbyx(currentPos(thickness,diameter,armLength,phi)) #gets the four corners needed to take each rectangluar slice
             posFunction = postionFunctions(thickness,diameter,armLength,phi) #creates the lines that trace out borders to slice
 
 
-
-            if(posFunction[0][0]<=0):
+            if posFunction[0][0]== np.Infinity:
+                Ax =0
+            elif(posFunction[0][0]<=0):
                 Ax = numeric_double_Integral(integrand[0],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
             else:
                 Ax = numeric_double_Integral(integrand[0],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[0][0]+posFunction[0][1],step,xprime,yprime)
-            if (cornerPos[1][1]<=cornerPos[2][1]):
+            if posFunction[2][0]== np.Infinity:
+                Ax+=0
+            elif (cornerPos[1][1]<=cornerPos[2][1]):
                 Ax += numeric_double_Integral(integrand[0],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
             else:
                 Ax += numeric_double_Integral(integrand[0],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
-            if (posFunction[2][0]>=0):
+            if posFunction[2][0]==np.Infinity:
+                Ax+=0
+            elif (posFunction[2][0]>=0):
                 Ax += numeric_double_Integral(integrand[0],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
             else:
                 Ax += numeric_double_Integral(integrand[0],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[3][0]+posFunction[3][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
-            if(posFunction[0][0]<=0):
-                Ay = numeric_double_Integral(integrand[0],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+            if posFunction[0][0]== np.Infinity:
+                Ay=0
+            elif(posFunction[0][0]<=0):
+                Ay = numeric_double_Integral(integrand[1],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
             else:
-                Ay = numeric_double_Integral(integrand[0],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[0][0]+posFunction[0][1],step,xprime,yprime)
-            if (cornerPos[1][1]<=cornerPos[2][1]):
-                Ay += numeric_double_Integral(integrand[0],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+                Ay = numeric_double_Integral(integrand[1],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[0][0]+posFunction[0][1],step,xprime,yprime)
+            if posFunction[2][0]==np.Infinity:
+                Ay+=0
+            elif (cornerPos[1][1]<=cornerPos[2][1]):
+                Ay += numeric_double_Integral(integrand[1],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
             else:
-                Ay += numeric_double_Integral(integrand[0],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
-            if (posFunction[2][0]>=0):
-                Ay += numeric_double_Integral(integrand[0],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
+                Ay += numeric_double_Integral(integrand[1],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
+            if posFunction[2][0]==np.Infinity:
+                Ay+=0
+            elif (posFunction[2][0]>=0):
+                Ay += numeric_double_Integral(integrand[1],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
             else:
-                Ay += numeric_double_Integral(integrand[0],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[3][0]+posFunction[3][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
-            if(posFunction[0][0]<=0):
-                Az = numeric_double_Integral(integrand[0],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+                Ay += numeric_double_Integral(integrand[1],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[3][0]+posFunction[3][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
+            if posFunction[0][0]== np.Infinity:
+                Az=0
+            elif(posFunction[0][0]<=0):
+                Az = numeric_double_Integral(integrand[2],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[0][0]+posFunction[0][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
             else:
-                Az = numeric_double_Integral(integrand[0],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[0][0]+posFunction[0][1],step,xprime,yprime)
-            if (cornerPos[1][1]<=cornerPos[2][1]):
-                Az += numeric_double_Integral(integrand[0],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
+                Az = numeric_double_Integral(integrand[2],cornerPos[0][0],cornerPos[1][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[0][0]+posFunction[0][1],step,xprime,yprime)
+            if posFunction[2][0] == np.Infinity:
+                Az+=0
+            elif (cornerPos[1][1]<=cornerPos[2][1]):
+                Az += numeric_double_Integral(integrand[2],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[1][0]+posFunction[1][1],step,xprime,yprime)
             else:
-                Az += numeric_double_Integral(integrand[0],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
-            if (posFunction[2][0]>=0):
-                Az += numeric_double_Integral(integrand[0],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
+                Az += numeric_double_Integral(integrand[2],cornerPos[1][0],cornerPos[2][0],xprime*posFunction[1][0]+posFunction[1][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
+            if posFunction[2][0]==np.Infinity:
+                Az+=0
+            elif (posFunction[2][0]>=0):
+                Az += numeric_double_Integral(integrand[2],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[2][0]+posFunction[2][1],xprime*posFunction[3][0]+posFunction[3][1],step,xprime,yprime)
             else:
-                Az += numeric_double_Integral(integrand[0],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[3][0]+posFunction[3][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
+                Az += numeric_double_Integral(integrand[2],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[3][0]+posFunction[3][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
             # evualtes the integral to get the potential. each component takes 3 integrals since the region must be broken up into 3 subregions
             A=np.array([Ax,Ay,Az])
             print(phi,A)
@@ -316,22 +428,22 @@ def numeric_double_Integral(integrand,x0,xf,yb,yt,step,symx,symy):
     #print("Returned I,", I)
     return I
 
-res =1
-xlim =10
-ylim =10
-zlim =10
-step=.05
+res =.5
+xlim =15
+ylim =15
+zlim =15
+step=.5
 totaltime=25
 timestep=1
 startphi =0*np.pi/2
-thickness=4
-diameter=2
-armLength=3
-angularvelocity=np.pi/3
-magnetization=200
+thickness=2
+diameter=1
+armLength=5
+angularvelocity=np.pi/4
+magnetization=4
 #rotating_field(thickness,diameter,armLength,startphi, angularvelocity,magnetization,step,resolution ,xlim, ylim,zlim, totaltime,timestep):
-double_integral_checker(thickness,diameter,armLength,startphi, angularvelocity,magnetization,step,res ,xlim, ylim,zlim, totaltime,timestep)
-#B =rotating_field(thickness,diameter,armLength,startphi, angularvelocity,magnetization,step,res ,xlim, ylim,zlim, totaltime,timestep)
+#double_integral_checker(thickness,diameter,armLength,startphi, angularvelocity,magnetization,step,res ,xlim, ylim,zlim, totaltime,timestep)
+B =rotating_field(thickness,diameter,armLength,startphi, angularvelocity,magnetization,step,res ,xlim, ylim,zlim, totaltime,timestep)
 '''
 for l in range(B.size):
     file = open("Bfielddata"+str(l)+".txt","w+")
