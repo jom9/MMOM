@@ -3,13 +3,23 @@ import numpy as np
 import time
 from queue import Queue
 import threading
+import sys
+from scipy import constants
 numofthreads=40
 threadQ=Queue()
+
 def magnitude(vector):
     m=0
     for i in range(vector.size):
         m+=vector[i]**2
     return m**.5
+def eval_field(A,symx,symy,symz):
+    B=[]
+    B+=[diff(A[2],symy)-diff(A[1],symz)]
+    B+=[-1*(diff(A[2],symx)-diff(A[0],symz))]
+    B+=[diff(A[1],symx)-diff(A[0],symy)]
+
+    return B
 def Magnetic_Potenial(thickness,diameter,armLength,phi, magnetization,step,zprime,xlim, ylim,zlim,resolution):
     # thickness is the thickness of the magnet
     # diameter of the magnet
@@ -17,16 +27,18 @@ def Magnetic_Potenial(thickness,diameter,armLength,phi, magnetization,step,zprim
     #phi is the current angular position
     #magnetization is the magnatic dipole moments per unit area, this is assumed to be coaxial
     #returns the analyitcal function of the magentic potential
-    M = np.array([np.cos(phi),np.sin(phi),0]) # magnetization vector
+    M = magnetization*np.array([np.cos(phi),np.sin(phi),0]) # magnetization vector
 
     x,y,z,xprime,yprime= symbols('x y z xprime yprime')
     delR = np.array([x-xprime,y-yprime,z-zprime]) # this is the distance vector, with the primed values denoting source points and the unprimed values denoting field values
 
-    integrand =np.cross(M,delR)/(magnitude(delR)**3)
-
+    integrand =constants.mu_o/(4*np.pi)np.cross(M,delR)/(magnitude(delR)**3)
     cornerPos= sortbyx(currentPos(thickness,diameter,armLength,phi)) #gets the four corners needed to take each rectangluar slice
     posFunction = postionFunctions(thickness,diameter,armLength,phi) #creates the lines that trace out borders to slice
 
+    AijkX=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
+    AijkY=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
+    AijkZ=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
 
     if posFunction[0][0]== np.Infinity:
         Ax =0
@@ -83,13 +95,10 @@ def Magnetic_Potenial(thickness,diameter,armLength,phi, magnetization,step,zprim
     else:
         Az += numeric_double_Integral(integrand[2],cornerPos[2][0],cornerPos[3][0],xprime*posFunction[3][0]+posFunction[3][1],xprime*posFunction[2][0]+posFunction[2][1],step,xprime,yprime)
     # evualtes the integral to get the potential. each component takes 3 integrals since the region must be broken up into 3 subregions
-    A=np.array([Ax,Ay,Az])
-    Afunc= lambdify([x,y,z],A) #analyitcal potential function geneated by combining slices
 
-    AijkX=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
-    AijkY=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
-    AijkZ=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
-    # The 3d arrays holding the field values for each point
+    Afunc = np.array([Ax,Ay,Az])
+    B = eval_field(Afunc,x,y,z)
+    Bfun = lambdify([x,y,z],B)
     i=0
     while i <int(2*xlim/resolution):
         j=0
@@ -97,13 +106,16 @@ def Magnetic_Potenial(thickness,diameter,armLength,phi, magnetization,step,zprim
             k=0
             while k<int(2*zlim/resolution):
 
-                AijkX[i][j][k]=Afunc(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[0]
-                AijkY[i][j][k]=Afunc(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[1]
-                AijkZ[i][j][k]=Afunc(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[2]
+                AijkX[i][j][k]=Bfun(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[0]
+                AijkY[i][j][k]=Bfun(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[1]
+                AijkZ[i][j][k]=Bfun(i*resolution-xlim,j*resolution-ylim,k*resolution-zlim)[2]
                 print("stuff",i,j,k,AijkX[i][j][k],AijkY[i][j][k],AijkZ[i][j][k])
                 k+=1
             j+=1
         i+=1
+
+    # The 3d arrays holding the field values for each point
+
     threadQ.put(np.array([AijkX,AijkY,AijkZ]))
     return np.array([AijkX,AijkY,AijkZ])
 
@@ -115,6 +127,7 @@ def Magnetic_Potenial_field(thickness,diameter,armLength,phi, magnetization,step
     AijkZ=np.zeros((int(2*xlim/resolution),int(2*ylim/resolution),int(2*zlim/resolution)))
 
     threadlist=[]
+    '''
     for i in range(int(2*zlim/(numofthreads*resolution))):
         j=i*numofthreads
         while j<numofthreads*(i+1):
@@ -129,7 +142,11 @@ def Magnetic_Potenial_field(thickness,diameter,armLength,phi, magnetization,step
             AijkX=np.add(AijkX,A[0])
             AijkY=np.add(AijkY,A[1])
             AijkZ=np.add(AijkZ,A[2])
-
+    '''
+    A=Magnetic_Potenial(thickness,diameter,armLength,phi, magnetization,step,0,xlim, ylim,zlim,resolution)
+    AijkX=np.add(AijkX,A[0])
+    AijkY=np.add(AijkY,A[1])
+    AijkZ=np.add(AijkZ,A[2])
     return np.array([AijkX,AijkY,AijkZ])
 
     '''
@@ -233,26 +250,26 @@ def postionFunctions(thickness,diameter,armLength,phi):
     b01 = L[0][1]-slopeofLine0To1*L[0][0]
     b13 = L[1][1]-slopeofLine1To3*L[1][0]
     b23 = L[2][1]-slopeofLine2To3*L[2][0]
-    print((round(L[0][0],2),round(L[0][1],2) ),(round(L[1][0],2),round(L[1][1],2) ),(round(L[2][0],2),round(L[2][1],2) ),(round(L[3][0],2),round(L[3][1],2) ) )
-    print("current pos",(round(slopeofLine0To1,2),round(b01,2)),(round(slopeofLine0To2,2),round(b02,2)),(round(slopeofLine1To3,2),round(b13,2)),(round(slopeofLine2To3,2),round(b23,2)))
+    #print((round(L[0][0],2),round(L[0][1],2) ),(round(L[1][0],2),round(L[1][1],2) ),(round(L[2][0],2),round(L[2][1],2) ),(round(L[3][0],2),round(L[3][1],2) ) )
+    #print("current pos",(round(slopeofLine0To1,2),round(b01,2)),(round(slopeofLine0To2,2),round(b02,2)),(round(slopeofLine1To3,2),round(b13,2)),(round(slopeofLine2To3,2),round(b23,2)))
     return [(slopeofLine0To1,b01),(slopeofLine0To2,b02),(slopeofLine1To3,b13),(slopeofLine2To3,b23)]
 def numeric_double_Integral(integrand,x0,xf,yb,yt,xstep,ystep,symx,symy):
 
     #simple rieman double integral
-    x=x0
-    I=0
+    xi=x0
+    I=0.0
     f= lambdify(symx,yb,"numpy")
     g= lambdify(symx,yt,"numpy")
     h = lambdify([symx,symy],integrand)
-    while( x<xf):
-        y=f(x)
-        while( y< g(x)):
-            area = h(x+xstep*.5,y+ystep*.5)
+    while( xi<xf):
+        yi=f(xi)
+        while( yi< g(xi)):
+            area = h(xi+xstep*.5,yi+ystep*.5)
 
             I+=area*ystep*xstep
 
-            y+=ystep
-        x+=xstep
+            yi+=ystep
+        xi+=xstep
     return I
 def numeric_curl(Vx,Vy,Vz,step):
     #numeric curl function, using linear approximation
@@ -304,7 +321,7 @@ def double_integral_checker(thickness,diameter,armLength,startphi, angularveloci
             start = time.time()
             phi=angularvelocity*t+startphi
 
-            M = magnetization*p.array([np.cos(phi),np.sin(phi),0]) # magnetization vector
+            M = magnetization*np.array([np.cos(phi),np.sin(phi),0]) # magnetization vector
 
             x,y,z,xprime,yprime= symbols('x y z xprime yprime')
             delR = np.array([x-xprime,y-yprime,z-zprime]) # this is the distance vector, with the primed values denoting source points and the unprimed values denoting field values
@@ -384,10 +401,10 @@ def rotating_field(thickness,diameter,armLength,startphi, angularvelocity,magnet
             print("started",t,"!")
             start = time.time()
             phi=angularvelocity*t+startphi
-            A=Magnetic_Potenial_field(thickness,diameter,armLength,phi, magnetization,step,resolution ,xlim, ylim,zlim)
+            B=Magnetic_Potenial_field(thickness,diameter,armLength,phi, magnetization,step,resolution ,xlim, ylim,zlim)
             #Bfield.append(Magnetic_Field(A,step))
             file = open("Bfielddata"+str(t)+".txt","w+")
-            B=Magnetic_Field(A,res)
+
             for i in range(np.shape(B[0])[0]):
                 for j in range(np.shape(B[0])[0]):
                     for k in range(np.shape(B[0])[0]):
@@ -408,39 +425,39 @@ def numeric_double_Integral(integrand,x0,xf,yb,yt,step,symx,symy):
     #print("Entering x's", x0,xf)
     xstep=step
     ystep=step
-    x=x0
+    xi=x0
     I=0
     #print("funcs",yb,yt)
     f= lambdify(symx,yb,"numpy")
     g= lambdify(symx,yt,"numpy")
     h = lambdify([symx,symy],integrand)
-    while( round(x,6)<round(xf,6)):
-        y=f(x)
+    while( round(xi,6)<round(xf,6)):
+        yi=f(xi)
         #print("x,yb and yt",x,y,g(x),f(x))
-        while( round(y,6)< round(g(x),6)):
+        while( round(yi,6)< round(g(xi),6)):
 
-            area = h(x+xstep*.5,y+ystep*.5)
+            area = h(xi+xstep*.5,yi+ystep*.5)
 
             I+=area*ystep*xstep
             #print("I,f,g,", I,y,g(x))
-            y+=ystep
-        x+=xstep
+            yi+=ystep
+        xi+=xstep
     #print("Returned I,", I)
     return I
 
 res =.5
-xlim =15
-ylim =15
-zlim =15
-step=.5
-totaltime=25
-timestep=1
-startphi =0*np.pi/2
+xlim =12
+ylim =12
+zlim =12
+step=.25
+totaltime=48.0
+timestep=1.0
+startphi =0*np.pi/5
 thickness=2
-diameter=1
-armLength=5
-angularvelocity=np.pi/4
-magnetization=4
+diameter=4
+armLength=3
+angularvelocity=np.pi/24
+magnetization=1.0
 #rotating_field(thickness,diameter,armLength,startphi, angularvelocity,magnetization,step,resolution ,xlim, ylim,zlim, totaltime,timestep):
 #double_integral_checker(thickness,diameter,armLength,startphi, angularvelocity,magnetization,step,res ,xlim, ylim,zlim, totaltime,timestep)
 B =rotating_field(thickness,diameter,armLength,startphi, angularvelocity,magnetization,step,res ,xlim, ylim,zlim, totaltime,timestep)
