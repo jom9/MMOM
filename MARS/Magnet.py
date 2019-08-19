@@ -1,9 +1,9 @@
 import numpy as np
 from sympy import *
 from scipy import constants
-
+import os
 class Magnet():
-    def __init__(self,thickness,diameter,armLength,xlim,ylim,zlim,resolution,step):
+    def __init__(self,thickness,diameter,armLength,magnetization,xlim,ylim,zlim,resolution,step):
         self.thickness=thickness
         self.diameter=diameter
         self.armLength=armLength
@@ -12,7 +12,8 @@ class Magnet():
         self.zlim=zlim
         self.resolution=resolution
         self.step=step
-    def Magnetic_Field_Slice(self,slice_diameter,zprime):
+        self.magnetization=magnetization
+    def Magnetic_Field_Slice(self,slice_diameter,zprime,phi):
     # thickness is the thickness of the magnet
     # diameter of the magnet
     #armLength is the distance the magnet is away from the center
@@ -27,9 +28,9 @@ class Magnet():
 
         integrand =np.cross(M,delR)/(self.magnitude(delR)**3)
 
-        cornerPos= self.sortbyx(self.currentPos(self.thickness,slice_diameter,self.armLength,self.phi)) #gets the four corners needed to take each rectangluar slice
+        cornerPos= self.sortbyx(self.currentPos(self.thickness,slice_diameter,self.armLength,phi)) #gets the four corners needed to take each rectangluar slice
 
-        posFunction = self.postionFunctions(self.thickness,slice_diameter,self.armLength,self.phi) #creates the lines that trace out borders to slice
+        posFunction = self.postionFunctions(self.thickness,slice_diameter,self.armLength,phi) #creates the lines that trace out borders to slice
 
         AijkX=np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
         AijkY=np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
@@ -118,7 +119,7 @@ class Magnet():
 
 
 
-    def gen_B_field(self,phi):
+    def genBfield(self,phi):
 
         AijkX=np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
         AijkY=np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
@@ -148,7 +149,7 @@ class Magnet():
         AijkZ=np.add(AijkZ,A[2])
 
         return np.array([AijkX,AijkY,AijkZ])
-    def gen_B_field(self,phi,i):
+    def genBfield(self,phi,i):
         AijkX=np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
         AijkY=np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
         AijkZ=np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
@@ -175,34 +176,52 @@ class Magnet():
         AijkX=np.add(AijkX,A[0])
         AijkY=np.add(AijkY,A[1])
         AijkZ=np.add(AijkZ,A[2])
+        current_path = os.getcwd()
+        if "magnet_Bfielddata" not in os.listdir(current_path):
+            os.mkdir("magnet_Bfielddata")
+        os.chdir("magnet_Bfielddata")
+
         file = open("magnet_Bfielddata"+str(i)+".txt","w+")
+
         for i in range(int(2*self.xlim/self.resolution)):
             for j in range(int(2*self.ylim/self.resolution)):
                 for k in range(int(2*self.zlim/self.resolution)):
                     file.write( "("+str(i*self.resolution-self.xlim)+","+str(j*self.resolution-self.ylim)+","+str(k*self.resolution-self.zlim)+")  "+"("+str(AijkX[i][j][k])+","+str(AijkY[i][j][k])+","+str(AijkZ[i][j][k]) +")\r\n")
-
+        os.chdir(current_path)
         return np.array([AijkX,AijkY,AijkZ])
-    def get_B_field(self,i):
+    def getBfield(self,i):
 
+        try:
+            current_path=os.getcwd()
+            os.chdir("magnet_Bfielddata")
+            file = open("magnet_Bfielddata"+str(i)+".txt",'r')
+            Bx_field = np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
+            By_field = np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
+            Bz_field = np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
+            for line in file.readlines():
+                parsedline = line.split(" ")
 
-        file = open("magnet_Bfielddata"+str(i)+".txt",'r')
-        Bx_field = np.zeros((2*self.xlim/self.resolution,2*self.ylim/self.resolution,2*self.zlim/self.resolution))
-        By_field = np.zeros((2*self.xlim/self.resolution,2*self.ylim/self.resolution,2*self.zlim/self.resolution))
-        Bz_field = np.zeros((2*self.xlim/self.resolution,2*self.ylim/self.resolution,2*self.zlim/self.resolution))
-        for line in file.readlines():
-            parsedline = line.split(" ")
-            coors = parsedline[0]
-            field = parsedline[-1]
-            x = float(coors.split(",")[0][1:])
-            y = float(coors.split(",")[1])
-            z = float(coors.split(",")[2][:-1])
+                coors = parsedline[0].split(",")
+                field = parsedline[-1].split(",")
+                if len(coors)==3 and len(field)==3:
 
-            u = float(field.split(",")[0][1:])
-            v = float(field.split(",")[1])
-            w = float(field.split(",")[2][:-2])
-            Bx_field[int(x//self.resolution-xlim.resolution)][int(y//self.resolution-ylim.resolution)][int(z//self.resolution-zlim.resolution)]=u
-            By_field[int(x//self.resolution-xlim.resolution)][int(y//self.resolution-ylim.resolution)][int(z//self.resolution-zlim.resolution)]=v
-            Bz_field[int(x//self.resolution-xlim.resolution)][int(y//self.resolution-ylim.resolution)][int(z//self.resolution-zlim.resolution)]=w
+                    print(i,coors,field)
+                    x = float(coors[0][1:])
+                    y = float(coors[1])
+                    z = float(coors[2][:-1])
+
+                    u = float(field[0][1:])
+                    v = float(field[1])
+                    w = float(field[2][:-2])
+                    Bx_field[int(x//self.resolution-self.xlim)][int(y//self.resolution-self.ylim)][int(z//self.resolution-self.zlim)]=u
+                    By_field[int(x//self.resolution-self.xlim)][int(y//self.resolution-self.ylim)][int(z//self.resolution-self.zlim)]=v
+                    Bz_field[int(x//self.resolution-self.xlim)][int(y//self.resolution-self.ylim)][int(z//self.resolution-self.zlim)]=w
+                else:
+                    continue
+            os.chdir(current_path)
+        except NotADirectoryError:
+            print("Nothing to get")
+
         return np.array([Bx_field,By_field,Bz_field])
     def numeric_double_Integral(self,integrand,x0,xf,yb,yt,xstep,ystep,symx,symy):
 
@@ -323,3 +342,76 @@ class Magnet():
         B+=[diff(A[1],symx)-diff(A[0],symy)]
 
         return B
+    def isInMagnet(self,x,y,phi):
+        epsilon = 6e-17
+        r = self.currentPos(self.thickness,self.diameter,self.armLength,phi)
+        dist_point_0 = ((((r[0][0] - x) ** 2) + (((r[0][1] - y)) ** 2))) ** (0.5)
+        dist_point_1 = ((((r[1][0] - x) ** 2) + (((r[1][1] - y)) ** 2))) ** (0.5)
+        dist_point_2 = ((((r[2][0] - x) ** 2) + (((r[2][1] - y)) ** 2))) ** (0.5)
+        dist_point_3 = ((((r[3][0] - x) ** 2) + (((r[3][1] - y)) ** 2))) ** (0.5)
+        semiperimeterp02 = ((self.thickness)+(dist_point_0)+(dist_point_2)) / 2
+        semiperimeterp01 = ((self.diameter)+(dist_point_0)+(dist_point_1)) / 2
+        semiperimeterp23 = ((self.diameter)+(dist_point_2)+(dist_point_3)) / 2
+        semiperimeterp13 = ((self.thickness)+(dist_point_1)+(dist_point_3)) / 2
+        Areap02 = ((semiperimeterp02)*((semiperimeterp02) - (dist_point_0))*((semiperimeterp02) - (dist_point_2))*((semiperimeterp02) - (self.thickness)))**(0.5)
+        Areap01 = ((semiperimeterp01)*((semiperimeterp01) - (dist_point_0))*((semiperimeterp01) - (dist_point_1))*((semiperimeterp01) - (self.diameter)))**(0.5)
+        Areap23 = ((semiperimeterp23)*((semiperimeterp23) - (dist_point_2))*((semiperimeterp23) - (dist_point_3))*((semiperimeterp23) - (self.diameter)))**(0.5)
+        Areap13 = ((semiperimeterp13)*((semiperimeterp13) - (dist_point_1))*((semiperimeterp13) - (dist_point_3))*((semiperimeterp13) - (self.thickness)))**(0.5)
+        SumArea = Areap01 + Areap02 + Areap23 + Areap13 + epsilon
+        if SumArea <= Areaofmagnet:
+            return True
+        else:
+            return False
+    def genForce(self,B_field,phi,i):
+        Bx_field=B_field[0]
+        By_field=B_field[1]
+        Bz_field=B_field[2]
+        current_path = os.getcwd()
+        if "forcefielddata" not in os.listdir(current_path):
+            os.mkdir("forcefielddata")
+        os.chdir("forcefielddata")
+        file = open("forcefielddata"+str(i)+".txt","w+")
+        forcex=np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
+        forcey=np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
+        forcez=np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
+        M = self.magnetization*np.array([np.cos(phi),np.sin(phi),0])
+        for i in range(int(2*self.xlim/self.resolution)):
+            for j in range(int(2*self.ylim/self.resolution)):
+                for k in range(int(2*self.zlim/self.resolution)):
+                    force= np.grad( np.dot(M,np.array([Bx_field[i][j][k],By_field[i][j][k],Bz_field[i][j][k]  ])))
+                    forcex[i][j][k]=force[0]
+                    forcey[i][j][k]=force[1]
+                    forcez[i][j][k]=force[2]
+                    file.write( "("+str(i*self.resolution-self.xlim)+","+str(j*self.resolution-self.ylim)+","+str(k*self.resolution-self.zlim)+")  "+"("+str(force[0])+","+str(force[1])+","+str(force[2]) +")\r\n")
+        os.chdir(current_path)
+    def getForce(self,i):
+        forcex=np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
+        forcey=np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
+        forcez=np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
+        current_path = os.getcwd()
+        if "forcefielddata" not in os.listdir(current_path):
+            os.mkdir("forcefielddata")
+        os.chdir("forcefielddata")
+        file = open("forcefielddata"+str(i)+".txt","r")
+        for line in file.readlines():
+            parsedline = line.split(" ")
+
+            coors = parsedline[0].split(",")
+            field = parsedline[-1].split(",")
+            if len(coors)==3 and len(field)==3:
+
+                print(i,coors,field)
+                x = float(coors[0][1:])
+                y = float(coors[1])
+                z = float(coors[2][:-1])
+
+                u = float(field[0][1:])
+                v = float(field[1])
+                w = float(field[2][:-2])
+                forcex[int(x//self.resolution-self.xlim)][int(y//self.resolution-self.ylim)][int(z//self.resolution-self.zlim)]=u
+                forcey[int(x//self.resolution-self.xlim)][int(y//self.resolution-self.ylim)][int(z//self.resolution-self.zlim)]=v
+                forcez[int(x//self.resolution-self.xlim)][int(y//self.resolution-self.ylim)][int(z//self.resolution-self.zlim)]=w
+            else:
+                continue
+        os.chdir(current_path)
+        return np.array([forcex,forcey,forcez])
