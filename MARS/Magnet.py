@@ -205,7 +205,7 @@ class Magnet():
                 field = parsedline[-1].split(",")
                 if len(coors)==3 and len(field)==3:
 
-                    print(i,coors,field)
+                    
                     x = float(coors[0][1:])
                     y = float(coors[1])
                     z = float(coors[2][:-1])
