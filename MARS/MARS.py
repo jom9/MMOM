@@ -1,5 +1,6 @@
 from Magnet import Magnet
 import numpy as np
+import os
 class MARS():
 
     def __init__(self,xlim,ylim,zlim,resolution,timesres,timelim,step):
@@ -40,9 +41,9 @@ class Simple_Gear(MARS):
                     Bfield_list.append(Driver.getBfield(i+j))
                 else:
                     reducediplusj=i+j
-                    while i+j>=int((2*np.pi/self.driving_angular_velocity)/self.timesres):
+                    while reducediplusj>=int((2*np.pi/self.driving_angular_velocity)/self.timesres):
                         reducediplusj-=int((2*np.pi/self.driving_angular_velocity)/self.timesres)
-                    Bfield_list.append(Driver.get_B_field(reducediplusj))
+                    Bfield_list.append(Driver.getBfield(reducediplusj))
             Bx_field = np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
             By_field = np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
             Bz_field = np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
@@ -56,6 +57,7 @@ class Simple_Gear(MARS):
                 os.mkdir("driver_Bfielddata")
             os.chdir("driver_Bfielddata")
             file= open("driver_Bfielddata"+str(i)+".txt",'w+')
+
             for u in range(int(2*self.xlim/self.resolution)):
                 for v in range(int(2*self.ylim/self.resolution)):
                     for w in range(int(2*self.zlim/self.resolution)):
@@ -63,9 +65,35 @@ class Simple_Gear(MARS):
             os.chdir(current_path)
 
     def get_Driving_B_field(self,i):
-        file = open("driver_Bfielddata"+str(i)+".txt",'r')
-        Bx_field = np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
-        By_field = np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
-        Bz_field = np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
-        for line in file.readlines():
-            parsedline = line.split(" ")
+        try:
+            current_path=os.getcwd()
+            os.chdir("driver_Bfielddata")
+            file = open("driver_Bfielddata"+str(i)+".txt",'r')
+            Bx_field = np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
+            By_field = np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
+            Bz_field = np.zeros((int(2*self.xlim/self.resolution),int(2*self.ylim/self.resolution),int(2*self.zlim/self.resolution)))
+            for line in file.readlines():
+                parsedline = line.split(" ")
+
+                coors = parsedline[0].split(",")
+                field = parsedline[-1].split(",")
+                if len(coors)==3 and len(field)==3:
+
+
+                    x = float(coors[0][1:])
+                    y = float(coors[1])
+                    z = float(coors[2][:-1])
+
+                    u = float(field[0][1:])
+                    v = float(field[1])
+                    w = float(field[2][:-2])
+                    Bx_field[int(x//self.resolution-self.xlim)][int(y//self.resolution-self.ylim)][int(z//self.resolution-self.zlim)]=u
+                    By_field[int(x//self.resolution-self.xlim)][int(y//self.resolution-self.ylim)][int(z//self.resolution-self.zlim)]=v
+                    Bz_field[int(x//self.resolution-self.xlim)][int(y//self.resolution-self.ylim)][int(z//self.resolution-self.zlim)]=w
+                else:
+                    continue
+            os.chdir(current_path)
+        except NotADirectoryError:
+            print("Nothing to get")
+
+        return np.array([Bx_field,By_field,Bz_field])
